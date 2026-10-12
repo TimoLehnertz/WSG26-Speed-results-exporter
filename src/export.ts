@@ -80,7 +80,7 @@ export function defaultSettings({ season, race }: RaceRef): RaceExportSettings {
 }
 
 /**
- * Brings times into a format roller-results accepts (mm:ss.uuu / hh:mm:ss.uuu).
+ * Brings times into the hh:mm:ss.uuu format roller-results expects.
  * Returns "" for missing or zero times (Vensport shows 00:00.000 for DNF/DNS).
  */
 export function normalizeTime(raw: string): string {
@@ -93,7 +93,7 @@ export function normalizeTime(raw: string): string {
   const ms = (m[4] ?? "0").padEnd(3, "0");
   if (h === 0 && min === 0 && s === 0 && Number(ms) === 0) return "";
   const p2 = (n: number) => String(n).padStart(2, "0");
-  return h > 0 ? `${p2(h)}:${p2(min)}:${p2(s)}.${ms}` : `${p2(min)}:${p2(s)}.${ms}`;
+  return `${p2(h)}:${p2(min)}:${p2(s)}.${ms}`;
 }
 
 function sanctionFlags(sanction: string) {

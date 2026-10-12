@@ -25,7 +25,7 @@ A static web page that shows the results of the **World Skate Games 2026 (Asunci
 | `startNumber` | Bib (used by roller-results as the athlete alias) |
 | `fullName`, `country` | Name, and the English country name from the flag |
 | `place` | Final ranking. Unplaced skaters (e.g. DQ) are put after the last placed skater |
-| `time` / `points` | Score column (`mm:ss.uuu`). `00:00.000` (DNF/DNS) is left empty |
+| `time` / `points` | Score column (`hh:mm:ss.uuu`). `00:00.000` (DNF/DNS) is left empty |
 | `remark` | Sanction code (W1, DQ-TF, DNS, …) |
 | `disqualificationTechnical` | `DQ-TF` |
 | `disqualificationSportsFault` | Any other `DQ-*` |
