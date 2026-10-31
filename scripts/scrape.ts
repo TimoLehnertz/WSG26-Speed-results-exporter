@@ -85,7 +85,7 @@ function isUnchanged(prev: Race | undefined, entry: NavEntry): prev is Race {
     prev.published &&
     entry.published &&
     prev.publishedAt === entry.publishedAt &&
-    prev.rounds.some((r) => r.isFinalRanking && r.results.length > 0)
+    prev.rounds.some((r) => r.isFinalRanking && !r.derived && r.results.length > 0)
   );
 }
 
@@ -99,6 +99,9 @@ function parseSeasonMeta(name: string, firstRaceName: string) {
   const n = ` ${name.toUpperCase()} `;
   const r = firstRaceName.toUpperCase();
   let category = "";
+  const trackRoad: Season["trackRoad"] = / (ROAD|MARATHON) /.test(n) ? "Road" : "Track";
+  // Mixed seasons (the marathon): category and gender are set per race.
+  if (/ OPEN /.test(n)) return { category: "Open", gender: "" as Season["gender"], trackRoad };
   if (/ (JR|JUNIOR|JUN) /.test(n) || r.startsWith("JUNIOR")) category = "Junior";
   else if (/ (SR|SENIOR|SEN) /.test(n) || r.startsWith("SENIOR")) category = "Senior";
   else if (/ (MASTER|MASTERS) /.test(n)) category = "Masters";
@@ -107,13 +110,31 @@ function parseSeasonMeta(name: string, firstRaceName: string) {
   let gender: Season["gender"] = "";
   if (/ (WOMEN|LADIES|FEMALE|W) /.test(n) || / WOMEN /.test(` ${r} `)) gender = "w";
   else if (/ (MEN|MALE|M) /.test(n) || / MEN /.test(` ${r} `)) gender = "m";
-  const trackRoad: Season["trackRoad"] = / (ROAD|MARATHON) /.test(n) ? "Road" : "Track";
   return { category, gender, trackRoad };
 }
 
-/** Strip the "junior Women " prefix from a division name. */
-function raceTitle(name: string) {
-  return clean(name.replace(/^(junior|senior|youth|masters?|open)\s+(women|men|ladies|mixed)\s+/i, ""));
+const RACE_PREFIX = /^(junior|senior|youth|pro|masters?(?:\s*\d+\+?)?|open)\s+(women|men|ladies|mixed)\s+/i;
+
+const tidy = (t: string) => (t === t.toUpperCase() ? titleCase(t) : t);
+
+/**
+ * Title, distance, category and gender of a race. Normally the season names the
+ * category and gender ("SR MEN TRACK"), so the title drops them: "senior Men
+ * 1.000m Sprint" -> "1.000m Sprint". In mixed seasons like the marathon they
+ * differ per race, so the title keeps them: "Master 30 Women Marathon".
+ */
+function raceInfo(name: string, seasonHasGender: boolean): Pick<Race, "title" | "distance" | "category" | "gender"> {
+  const full = clean(name);
+  const m = full.match(RACE_PREFIX);
+  const rest = tidy(clean(full.replace(RACE_PREFIX, "")));
+  if (!m || seasonHasGender) return { title: rest };
+  const level = titleCase(m[1]).replace(/\s+/g, " ");
+  return {
+    title: `${level} ${titleCase(m[2])} ${rest}`,
+    distance: rest,
+    category: /^pro$/i.test(level) ? "Senior" : level,
+    gender: /^(women|ladies)$/i.test(m[2]) ? "w" : /^men$/i.test(m[2]) ? "m" : "",
+  };
 }
 
 function parseRounds($: CheerioAPI): Round[] {
@@ -135,12 +156,16 @@ function parseRounds($: CheerioAPI): Round[] {
       const place = /^\d+$/.test(placeText) ? parseInt(placeText, 10) : null;
       const name = cell("name");
       if (!name && !cell("race-number")) return;
+      // Without a flag the club column holds the country, or a team in the marathon.
+      const club = titleCase(cell("club"));
+      const isTeam = !flagAlt && /\bteam\b/i.test(club);
       results.push({
         place,
         bib: cell("race-number"),
         name,
-        country: flagAlt || titleCase(cell("club")),
+        country: flagAlt || (isTeam ? "" : club),
         countryCode: code,
+        ...(isTeam ? { team: club } : {}),
         score: cell("score"),
         sanction: cell("sanction"),
         qualified: cell("qualified"),
@@ -149,7 +174,53 @@ function parseRounds($: CheerioAPI): Round[] {
     });
     rounds.push({ name, isFinalRanking: /final rankings?/i.test(name), scoreLabel, results });
   });
+  const derived = deriveRanking(rounds);
+  if (derived) rounds.unshift(derived);
   return rounds;
+}
+
+function seconds(score: string): number {
+  const m = score.trim().match(/^(?:(\d+):)?(\d+)(?:\.(\d+))?$/);
+  if (!m) return Infinity;
+  const v = parseInt(m[1] ?? "0", 10) * 60 + parseInt(m[2], 10) + parseFloat(`0.${m[3] ?? "0"}`);
+  return v > 0 ? v : Infinity;
+}
+
+/**
+ * Builds a final ranking from the heats when Vensport has none, the way Vensport
+ * ranks sprint races: the final by place, then the skaters eliminated in each
+ * earlier round by time (by place for points rounds). Only done once a final has
+ * results, so races that are still running don't get a ranking.
+ */
+function deriveRanking(rounds: Round[]): Round | null {
+  if (rounds.some((r) => r.isFinalRanking && r.results.length)) return null;
+  const stages: { name: string; heats: Round[] }[] = [];
+  for (const r of rounds) {
+    if (!r.results.length) continue;
+    const name = r.name.split(" - ")[0];
+    if (stages.at(-1)?.name !== name) stages.push({ name, heats: [] });
+    stages.at(-1)!.heats.push(r);
+  }
+  if (!stages.length || !/final/i.test(stages[0].name)) return null;
+  const seen = new Set<string>();
+  const results: ResultRow[] = [];
+  stages.forEach(({ name, heats }, i) => {
+    const byPlace = i === 0 || heats.some((h) => /point/i.test(h.scoreLabel));
+    const rows = heats.flatMap((h) => h.results).filter((r) => !seen.has(r.bib || r.name));
+    rows.sort(
+      (a, b) =>
+        Number(a.place === null) - Number(b.place === null) ||
+        (byPlace ? (a.place ?? 0) - (b.place ?? 0) : 0) ||
+        seconds(a.score) - seconds(b.score),
+    );
+    for (const r of rows) {
+      seen.add(r.bib || r.name);
+      results.push({ ...r, qualified: "", progression: name });
+    }
+  });
+  let place = 0;
+  for (const r of results) r.place = r.place === null ? null : ++place;
+  return { name: "Final Rankings", isFinalRanking: true, derived: true, scoreLabel: stages[0].heats[0].scoreLabel, results };
 }
 
 interface NavEntry {
@@ -209,12 +280,14 @@ async function main() {
     const nav = parseNav(seedPage);
     if (!nav.some((n) => n.id === seed)) nav.push({ id: seed, name: clean(seedPage("h3").first().text()), published: true, publishedAt: null });
 
+    const seasonMeta = parseSeasonMeta(seasonName, nav[0]?.name ?? "");
+    const seasonHasGender = / (WOMEN|LADIES|FEMALE|MEN|MALE) /.test(` ${seasonName.toUpperCase()} `);
     const races: Race[] = [];
     for (const entry of nav) {
       seen.add(entry.id);
       const prev = previous.get(entry.id);
       if (entry.id !== seed && isUnchanged(prev, entry)) {
-        races.push({ ...prev, name: entry.name, title: raceTitle(entry.name) });
+        races.push({ ...prev, name: entry.name, ...raceInfo(entry.name, seasonHasGender) });
         console.log(`  ${seasonName} / ${entry.name}: unchanged`);
         continue;
       }
@@ -230,14 +303,14 @@ async function main() {
       races.push({
         id: entry.id,
         name: entry.name,
-        title: raceTitle(entry.name),
+        ...raceInfo(entry.name, seasonHasGender),
         published: entry.published,
         publishedAt: entry.publishedAt,
         rounds,
       });
       console.log(`  ${seasonName} / ${entry.name}: ${rounds.length} rounds`);
     }
-    seasons.push({ id: seasonId, name: seasonName, ...parseSeasonMeta(seasonName, nav[0]?.name ?? ""), races });
+    seasons.push({ id: seasonId, name: seasonName, ...seasonMeta, races });
   }
 
   // Keep seasons that could not be loaded this time.

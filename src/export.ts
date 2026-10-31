@@ -70,9 +70,9 @@ export function normalizeDistance(title: string): string {
 
 export function defaultSettings({ season, race }: RaceRef): RaceExportSettings {
   return {
-    distance: normalizeDistance(race.title),
-    category: season.category,
-    gender: season.gender,
+    distance: normalizeDistance(race.distance ?? race.title),
+    category: race.category || season.category,
+    gender: race.gender || season.gender,
     trackRoad: season.trackRoad,
     isRelay: /relay/i.test(race.title) ? "1" : "0",
     round: "Final",
@@ -132,6 +132,7 @@ export function raceToRows(ref: RaceRef, settings: RaceExportSettings): RRRow[] 
       startNumber: r.bib,
       fullName: r.name,
       country: r.country,
+      team: r.team ?? "",
       place,
       remark: r.sanction,
       round: settings.round,

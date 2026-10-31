@@ -781,3 +781,9 @@ table.details .check {
   white-space: nowrap;
   padding: 3px 8px;
 }
+
+.derived-note {
+  font-weight: normal;
+  font-size: 0.8em;
+  color: var(--warn);
+}

@@ -18,7 +18,7 @@ function splitRoundName(name: string): [string, string] {
 }
 
 function matchesRow(r: ResultRow, q: string) {
-  return !!q && (r.name.toLowerCase().includes(q) || r.country.toLowerCase().includes(q) || r.bib === q);
+  return !!q && (r.name.toLowerCase().includes(q) || r.country.toLowerCase().includes(q) || (r.team ?? "").toLowerCase().includes(q) || r.bib === q);
 }
 
 function ResultsTable({ round, highlight, showProgress }: { round: Round; highlight: string; showProgress?: boolean }) {
@@ -57,7 +57,7 @@ function ResultsTable({ round, highlight, showProgress }: { round: Round; highli
             <td className="name">{r.name}</td>
             <td className="country">
               <Flag code={r.countryCode} title={r.country} />
-              {r.country}
+              {r.country || r.team}
             </td>
             {hasScore && <td className="num score">{r.score.replace(/^00:/, "")}</td>}
             {hasSanctions && <td>{r.sanction && <span className={`sanction ${/^DQ|DNS|DNF/.test(r.sanction) ? "bad" : ""}`}>{r.sanction}</span>}</td>}
@@ -108,7 +108,7 @@ export function RaceView({ season, race, highlight, onExport }: Props) {
 
       {ranking ? (
         <section className="card">
-          <h2>Final ranking</h2>
+          <h2>Final ranking{ranking.derived && <span className="derived-note"> (derived from the heats – not yet published on Vensport)</span>}</h2>
           <ResultsTable round={ranking} highlight={q} showProgress />
         </section>
       ) : (

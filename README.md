@@ -24,6 +24,7 @@ A static web page that shows the results of the **World Skate Games 2026 (Asunci
 | `category` / `gender` / `trackRoad` | Taken from the Vensport season (e.g. *JR WOMEN TRACK*) |
 | `startNumber` | Bib (used by roller-results as the athlete alias) |
 | `fullName`, `country` | Name, and the English country name from the flag |
+| `team` | Marathon world team (the club column when it names a team) |
 | `place` | Final ranking. Unplaced skaters (e.g. DQ) are put after the last placed skater |
 | `time` / `points` | Score column (`hh:mm:ss.uuu`). `00:00.000` (DNF/DNS) is left empty |
 | `remark` | Sanction code (W1, DQ-TF, DNS, …) |
@@ -34,11 +35,20 @@ A static web page that shows the results of the **World Skate Games 2026 (Asunci
 Only the **final ranking** of each race is exported, because roller-results merges all rows that have the same
 distance, category and gender into a single race. Races that don't have a final ranking yet are listed as skipped.
 
+If Vensport hasn't published a final ranking but the final has been run (e.g. *senior Men 1.000m Sprint*), the ranking
+is derived from the heats the way Vensport ranks sprint races: the final by place, then the skaters eliminated in each
+earlier round by time. Such rankings are marked as *derived* in the app and the export dialog. Checked against the
+published 1000m rankings, the top 8 always matches and the lower places match almost entirely.
+
+In the marathon, category and gender come from each race name (*Master 35 Women MARATHON* → `Master 35`, `w`; *Pro*
+→ `Senior`), and world-team entries are exported in the `team` column instead of `country`.
+
 ## Development
 
 ```bash
 npm install
 npm run scrape   # fetch the latest results into public/data/results.json
+                 # behind an HTTPS proxy: NODE_USE_ENV_PROXY=1 npm run scrape
 npm run dev      # local dev server
 npm run build    # static build in dist/
 ```

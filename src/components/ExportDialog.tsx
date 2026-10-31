@@ -135,7 +135,10 @@ export function ExportDialog({ refs, onClose }: Props) {
                         />
                       </td>
                       <td>
-                        <div className="race-name">{ref.race.title}</div>
+                        <div className="race-name">
+                          {ref.race.title}
+                          {finalRanking(ref.race)?.derived && <span className="derived-note small"> · ranking derived from heats</span>}
+                        </div>
                         <div className="muted small">{seasonLabel(ref.season)}</div>
                       </td>
                       <td>
