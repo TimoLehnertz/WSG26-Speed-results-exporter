@@ -1,5 +1,9 @@
 # WSG 2026 Speed results exporter
 
+**Live app: https://timolehnertz.github.io/WSG26-Speed-results-exporter/**
+
+Hosted on GitHub Pages. The results are refreshed from Vensport every 30 minutes and on every push to `main`.
+
 A static web page that shows the results of the **World Skate Games 2026 (Asunción) speed skating** events from
 [worldskatespeed.vensport.com](https://worldskatespeed.vensport.com/) and exports them in the
 [roller-results.com import format](https://www.roller-results.com/tools/import-project.php).
