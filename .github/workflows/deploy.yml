@@ -27,7 +27,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # If Vensport is unreachable the committed snapshot in public/data is deployed instead.
+      # Start from the currently deployed results: completed races are not fetched again
+      # (Vensport rate-limits), and pages that fail to load keep their previous data.
+      # Falls back to the committed snapshot in public/data.
+      - name: Download deployed results
+        run: |
+          curl -fsSL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/results.json" -o previous.json \
+            && node -e 'JSON.parse(require("fs").readFileSync("previous.json","utf8")).seasons.length' \
+            && cp previous.json public/data/results.json \
+            || echo "No deployed results, using committed snapshot"
       - name: Scrape latest results
         run: npm run scrape
         continue-on-error: true

@@ -45,8 +45,12 @@ npm run build    # static build in dist/
 
 Vensport doesn't allow cross-origin requests, so the browser can't load results directly. Instead,
 `scripts/scrape.ts` crawls the site from Node and writes `public/data/results.json`. Seasons are found through the
-division links on the Vensport home page. If a season isn't linked there yet (for example the road events), add one
+division links on the Vensport home page. If a season isn't linked there (for example the marathon), add one
 of its division ids to `EXTRA_SEED_DIVISIONS`.
+
+Vensport rate-limits requests (HTTP 429), so the scraper spaces them out and retries. It also starts from the previous
+`results.json` (in CI, the deployed one): races that are published with a final ranking and haven't been republished are
+not fetched again, and pages that still fail keep their previous data instead of aborting the whole scrape.
 
 ## Deployment
 
